@@ -2,7 +2,7 @@ import { Button } from "../components/Button.tsx";
 import { LCD } from "../components/LCD.tsx";
 import html2canvas from "html2canvas";
 import FileSaver from "file-saver";
-import { Signal, useSignal } from "@preact/signals";
+import { Signal, signal } from "@preact/signals";
 
 interface SavableLCDProps {
   id: string;
@@ -12,22 +12,16 @@ interface SavableLCDProps {
 
 export function SavableLCD(props: SavableLCDProps) {
   const inputs = [];
-
-  const sig: Signal<string[]> = useSignal([]);
-  let other: string[] = [];
+  const sigs: Signal<string>[] = [];
 
   for (let i = 0; i < props.rows; i++) {
-    sig.value.push("");
-    other.push("");
+    sigs.push(signal(""));
     inputs.push(
       <input
         class="border m-1"
         maxlength={props.cols}
         onKeyUp={(e) => {
-          other[i] = e.currentTarget.value;
-          const o = sig.value;
-          sig.value = other;
-          other = o;
+          sigs[i].value = e.currentTarget.value;
         }}
       />,
     );
@@ -37,7 +31,7 @@ export function SavableLCD(props: SavableLCDProps) {
   return (
     <div class="savable-lcd-container">
       <div class="grid justify-center">{inputs}</div>
-      <LCD id={props.id} rows={props.rows} cols={props.cols} text={sig} />
+      <LCD id={props.id} rows={props.rows} cols={props.cols} text={sigs} />
 
       <div class="grid justify-center">
         <input id={`${props.id}-filename`} class="border" value="lcd.png" />
