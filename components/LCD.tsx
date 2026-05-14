@@ -1,13 +1,14 @@
 //import { useEffect } from "preact/hooks"
 
 import { assert } from "$std/assert/assert.ts";
-import { computed, Signal } from "@preact/signals";
+import { computed, Signal, useComputed } from "@preact/signals";
 
 export const CHAR_HEIGHT = 8;
 export const CHAR_WIDTH = 5;
 
 const chars: Record<string, string[]> = {
   " ": ["00000", "00000", "00000", "00000", "00000", "00000", "00000", "00000"],
+  "!": ["00100", "00100", "00100", "00000", "00000", "00100", "00000", "00000"],
   "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110", "00000"],
   "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110", "00000"],
   "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111", "00000"],
@@ -82,29 +83,27 @@ interface LCDProps {
   id: string;
   cols: number;
   rows: number;
-  text: Signal<string>[];
+  text: Signal<string[]>;
 }
 
-function CharRow(line_map: string) {
-  assert(line_map.length == CHAR_WIDTH, `was ${line_map.length}`);
+function Pixel(on_off: Signal<boolean>) {
+  return useComputed(() => {
+    const color = on_off.value ? "bg-blue-900" : "bg-blue-400";
+    return (
+      <div
+        class={`pixel table-cell w-[4px] h-[4px] pointer-events-none ${color}`}
+      />
+    );
+  });
+}
 
+function CharRow(line_map: Signal<string>) {
   const out = [];
-  for (const c of line_map) {
-    assert(c == "0" || c == "1");
-    switch (c) {
-      case "0":
-        out.push(
-          <div class="pixel table-cell w-[4px] h-[4px] bg-blue-400" />,
-        );
-        break;
-      case "1":
-        out.push(
-          <div class="pixel table-cell w-[4px] h-[4px] bg-slate-900" />,
-        );
-        break;
-      default:
-        assert(false, "line_map must consist of only 0 and 1");
-    }
+  for (let i = 0; i < CHAR_WIDTH; i++) {
+    const pixel_sig = computed(() => {
+      return line_map.value[i] == "1";
+    });
+    out.push(Pixel(pixel_sig));
   }
 
   return (
@@ -114,21 +113,20 @@ function CharRow(line_map: string) {
   );
 }
 
-function Char(char: string) {
-  assert(char.length == 1);
-
-  let line_map: string[];
-  if (char in chars) {
-    line_map = chars[char];
-  } else {
-    line_map = chars[" "];
-  }
-
-  assert(line_map.length == CHAR_HEIGHT);
+function Char(char: Signal<string>) {
+  const map_sig = computed(() => {
+    assert(char.value.length == 1);
+    if (char.value in chars) return chars[char.value];
+    else return chars[" "];
+  });
 
   const out = [];
-  for (const line of line_map) {
-    out.push(CharRow(line));
+
+  for (let i = 0; i < CHAR_HEIGHT; i++) {
+    const row_sig = computed(() => {
+      return map_sig.value[i];
+    });
+    out.push(CharRow(row_sig));
   }
 
   return (
@@ -139,42 +137,31 @@ function Char(char: string) {
 }
 
 function LCDLine(props: LCDProps, line: Signal<string>) {
-  return computed(() => {
-    let text = line.value;
+  const out = [];
 
-    text = text.padEnd(props.cols, " ").substring(0, props.cols);
-    while (text.length < props.cols) {
-      text += " ";
-    }
+  for (let i = 0; i < props.cols; i++) {
+    const sig = computed(() => {
+      return i < line.value.length ? line.value[i] : " ";
+    });
+    out.push(Char(sig));
+  }
 
-    if (text.length > props.cols) {
-      text = text.substring(0, props.cols);
-    }
-
-    const out = [];
-
-    for (const char of text) {
-      out.push(Char(char));
-    }
-    return <div class="lcd-line table-row">{out}</div>;
-  });
+  return <div class="lcd-line table-row pointer-events-none">{out}</div>;
 }
 
 export function LCD(props: LCDProps) {
-  assert(
-    props.text.length == props.rows,
-    `l: ${props.text.length}, r: ${props.rows}`,
-  );
-
   const out = [];
-  for (const line of props.text) {
-    out.push(LCDLine(props, line));
+  for (let i = 0; i < props.rows; i++) {
+    const sig = computed(() => {
+      return props.text.value[i];
+    });
+    out.push(LCDLine(props, sig));
   }
 
   return (
     <div
       id={props.id}
-      class="lcd table bg-blue-300 border-8 rounded-lg border-gray-800 p-1 border-spacing-y-[3px] border-spacing-x-[1px]"
+      class="lcd table bg-blue-300 border-8 rounded-lg border-gray-800 p-1 border-spacing-y-[3px] border-spacing-x-[1px] pointer-events-none"
     >
       {out}
     </div>
